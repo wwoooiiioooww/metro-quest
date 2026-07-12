@@ -1,0 +1,16 @@
+{
+  "name": "地下鉄クエスト・スロット",
+  "short_name": "地下鉄クエスト",
+  "description": "スロットで行き先とミッションが決まる、親子の路線探検アプリ",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "lang": "ja",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>地下鉄クエスト・スロット</title>
+<style>
+  :root {
+    --bg:#1a1a2e; --panel:#16213e; --line:#0f3460; --gold:#f1c40f; --orange:#f39c12;
+    --cyan:#00d2d3; --pink:#ff9ff3; --red:#e74c3c; --green:#2ecc71; --grey:#8395a7;
+  }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif; text-align:center;
+    background-color:var(--bg); color:#fff; margin:0; padding:10px; touch-action:manipulation;
+  }
+  h1 { color:var(--orange); font-size:1.7em; margin:8px 0 4px; text-shadow:0 0 10px var(--orange); }
+  #spins-left { font-size:1.15em; color:var(--cyan); font-weight:bold; }
+  #total-money { font-size:1.05em; color:var(--gold); font-weight:bold; margin:4px 0 2px; }
+  #rank { font-size:0.9em; color:var(--pink); margin-bottom:8px; }
+
+  /* 候補サマリーバー */
+  #summary-bar {
+    max-width:400px; margin:0 auto 12px; display:flex; align-items:center; justify-content:space-between;
+    background:var(--panel); border:2px solid var(--line); border-radius:10px; padding:8px 10px; gap:8px;
+  }
+  #summary-text { font-size:0.8em; color:var(--grey); text-align:left; flex-grow:1; line-height:1.4; }
+  #summary-text b { color:var(--cyan); font-size:1.2em; }
+  #gear-btn {
+    background:var(--line); color:#fff; border:none; border-radius:10px;
+    padding:10px 12px; font-size:1.2em; cursor:pointer; flex-shrink:0;
+  }
+
+  .slot-container { display:flex; flex-direction:column; gap:10px; max-width:400px; margin:0 auto; }
+  .reel-row {
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--panel); border:3px solid var(--line); border-radius:10px;
+    padding:10px; box-shadow:inset 0 0 10px #000;
+  }
+  .reel-label { font-size:0.8em; color:var(--grey); writing-mode:vertical-rl; text-orientation:upright; margin-right:5px; }
+  .reel-box {
+    flex-grow:1; font-size:1.15em; font-weight:bold; color:#fff; height:52px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden;
+    background:#000; border-radius:5px; margin-right:10px;
+    text-align:center; white-space:pre-wrap; line-height:1.15;
+  }
+  .line-chips { display:flex; gap:3px; flex-wrap:wrap; justify-content:center; margin-top:2px; }
+  .lc { font-size:0.55em; padding:1px 5px; border-radius:8px; color:#fff; font-weight:bold; }
+  .stop-btn {
+    background-color:var(--red); color:#fff; border:none; border-radius:50px;
+    padding:10px 15px; font-size:1em; font-weight:bold; cursor:pointer; box-shadow:0 4px #c0392b;
+  }
+  .stop-btn:active { transform:translateY(4px); box-shadow:0 0 #c0392b; }
+  .stop-btn:disabled { background-color:#555; box-shadow:0 4px #333; transform:none; }
+  #start-btn {
+    background-color:var(--gold); color:#111; border:none; border-radius:50px;
+    padding:15px 30px; font-size:1.4em; font-weight:bold; margin-top:15px;
+    cursor:pointer; box-shadow:0 5px var(--orange); width:90%; max-width:350px;
+  }
+  #start-btn:active { transform:translateY(5px); box-shadow:0 0 var(--orange); }
+  #start-btn:disabled { background-color:#7f8c8d; box-shadow:0 5px #555; color:#ccc; }
+  #clear-btn {
+    background-color:var(--green); color:#fff; border:none; border-radius:50px;
+    padding:12px 20px; font-size:1.1em; font-weight:bold; margin-top:10px;
+    cursor:pointer; box-shadow:0 4px #27ae60; width:90%; max-width:350px; display:none;
+  }
+  #clear-btn:active { transform:translateY(4px); box-shadow:0 0 #27ae60; }
+  #bonus-msg {
+    max-width:380px; margin:15px auto 0; font-size:1.15em; color:var(--pink); font-weight:bold;
+    min-height:2em; text-shadow:0 0 10px var(--pink); display:none;
+    border:2px dashed var(--pink); padding:10px; border-radius:10px; background:rgba(255,159,243,0.1);
+  }
+  .panel {
+    max-width:400px; margin:18px auto; background:var(--panel); border:2px solid var(--line);
+    border-radius:10px; padding:10px; text-align:left;
+  }
+  .panel h3 { color:var(--cyan); font-size:1em; margin:5px 0 8px; text-align:center; }
+  .history-item { font-size:0.85em; padding:4px 0; border-bottom:1px solid var(--line); }
+  .excluded-tag {
+    display:inline-block; background:#555; color:#fff; padding:3px 8px;
+    margin:3px; border-radius:12px; font-size:0.8em; cursor:pointer;
+  }
+  .small-btn {
+    background:#e67e22; color:#fff; border:none; border-radius:8px;
+    padding:7px 12px; font-size:0.85em; cursor:pointer; margin:3px;
+  }
+  .stamp { color:var(--green); font-weight:bold; }
+
+  /* ---- 設定パネル ---- */
+  #settings { display:none; }
+  .sec { border-top:1px dashed var(--line); margin-top:12px; padding-top:10px; }
+  .sec h4 { color:var(--orange); font-size:0.95em; margin:0 0 6px; }
+  .chip {
+    display:inline-block; padding:6px 10px; margin:3px; border-radius:15px; font-size:0.85em;
+    background:#222c4e; color:var(--grey); border:2px solid var(--line); cursor:pointer; user-select:none;
+  }
+  .chip.on { color:#fff; border-color:var(--cyan); background:#0e4a5e; font-weight:bold; }
+  .chip .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; }
+  .co-head {
+    display:flex; align-items:center; gap:8px; margin-top:8px; font-weight:bold; font-size:0.95em; cursor:pointer;
+  }
+  .co-head input { transform:scale(1.3); }
+  .edit-row { display:flex; gap:6px; margin:4px 0; align-items:center; }
+  .edit-row input[type=text] { flex-grow:1; min-width:0; }
+  .edit-row input[type=number] { width:64px; }
+  input[type=text], input[type=number], textarea, select {
+    background:#0b1330; color:#fff; border:1px solid var(--line); border-radius:6px; padding:7px; font-size:0.95em;
+  }
+  .chip.excluded { color:#666; border-color:#555; background:#1a1a1a; text-decoration:line-through; }
+  textarea { width:100%; box-sizing:border-box; min-height:180px; line-height:1.5; }
+  .del-btn { background:var(--red); color:#fff; border:none; border-radius:6px; padding:6px 10px; cursor:pointer; }
+  .note { font-size:0.75em; color:var(--grey); margin:4px 0; line-height:1.5; }
+  #save-btn {
+    background:var(--green); color:#fff; border:none; border-radius:50px; padding:12px 20px;
+    font-size:1.05em; font-weight:bold; cursor:pointer; width:100%; margin-top:12px; box-shadow:0 4px #27ae60;
+  }
+  /* 紙吹雪 */
+  .confetti { position:fixed; top:-10%; font-size:1.6em; pointer-events:none; animation:fall 2.2s linear forwards; z-index:99; }
+  @keyframes fall { to { transform:translateY(115vh) rotate(540deg); opacity:0.8; } }
+</style>
+</head>
+<body>
+
+  <h1 id="title">🎰 地下鉄クエスト・スロット</h1>
+  <div id="spins-left"></div>
+  <div id="total-money"></div>
+  <div id="rank"></div>
+
+  <div id="summary-bar">
+    <div id="summary-text"></div>
+    <button id="gear-btn" onclick="openSettings()">⚙️</button>
+  </div>
+
+  <div class="slot-container">
+    <div class="reel-row">
+      <div class="reel-label">行き先</div>
+      <div class="reel-box" id="reel-0">---</div>
+      <button class="stop-btn" id="stop-0" onclick="stopReel(0)" disabled>STOP</button>
+    </div>
+    <div class="reel-row">
+      <div class="reel-label">指令</div>
+      <div class="reel-box" id="reel-1">---</div>
+      <button class="stop-btn" id="stop-1" onclick="stopReel(1)" disabled>STOP</button>
+    </div>
+    <div class="reel-row">
+      <div class="reel-label">金額</div>
+      <div class="reel-box" id="reel-2" style="color:#f1c40f;">---</div>
+      <button class="stop-btn" id="stop-2" onclick="stopReel(2)" disabled>STOP</button>
+    </div>
+    <div class="reel-row">
+      <div class="reel-label">対象者</div>
+      <div class="reel-box" id="reel-3" style="color:#00d2d3;">---</div>
+      <button class="stop-btn" id="stop-3" onclick="stopReel(3)" disabled>STOP</button>
+    </div>
+  </div>
+
+  <button id="start-btn" onclick="startAll()">スピン開始!</button>
+  <button id="clear-btn" onclick="clearMission()">⭐ ミッション達成!スタンプGET</button>
+  <div id="bonus-msg"></div>
+
+  <!-- 除外(メイン画面のクイック操作) -->
+  <div class="panel">
+    <h3>🚫 行った駅の除外</h3>
+    <div style="text-align:center;">
+      <button class="small-btn" onclick="excludeCurrent()">今出ている駅を除外する</button>
+    </div>
+    <div id="excluded-list" style="margin-top:8px; text-align:center; color:#8395a7; font-size:0.85em;"></div>
+  </div>
+
+  <!-- 冒険の記録 -->
+  <div class="panel">
+    <h3>📖 今日の冒険の記録</h3>
+    <div id="history-list" style="color:#8395a7; font-size:0.85em; text-align:center;">まだ記録がありません</div>
+  </div>
+
+  <!-- ============ 保護者設定 ============ -->
+  <div class="panel" id="settings">
+    <h3>🔐 保護者せってい</h3>
+
+    <div class="sec">
+      <h4>📍 エリア</h4>
+      <div id="area-chips"></div>
+    </div>
+
+    <div class="sec">
+      <h4>🚃 会社と路線</h4>
+      <div class="note">会社のチェックで全線ON/OFF。路線チップで個別に選べます。</div>
+      <div id="company-list"></div>
+    </div>
+
+    <div class="sec">
+      <h4>🚫 事前除外(駅の検索登録)</h4>
+      <div class="edit-row">
+        <input type="text" id="pre-exclude-input" list="station-datalist" placeholder="駅名を入力…">
+        <datalist id="station-datalist"></datalist>
+        <button class="small-btn" onclick="preExclude()">除外に追加</button>
+      </div>
+      <div class="note">路線を選ぶと駅一覧が出ます。タップで除外⇔解除を切り替え。</div>
+      <div class="edit-row">
+        <select id="line-pick" onchange="renderLineStations()" style="flex-grow:1;"></select>
+      </div>
+      <div id="line-station-list"></div>
+      <div style="text-align:center;">
+        <button class="small-btn" onclick="resetExcluded()" style="background:#3498db;">除外をすべて解除</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h4>🎫 回数</h4>
+      <div class="edit-row">
+        <span style="font-size:0.85em;">1日の回数:</span>
+        <input type="number" id="spins-per-day" min="1" max="99">
+        <button class="small-btn" onclick="resetSpins()" style="background:#3498db;">残り回数をリセット</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h4>👨‍👩‍👧‍👧 対象者と出やすさ(重み)</h4>
+      <div class="note">重みが大きいほど出やすくなります(合計は自動計算)。</div>
+      <div id="target-editor"></div>
+      <button class="small-btn" onclick="addTargetRow()">+ 追加</button>
+    </div>
+
+    <div class="sec">
+      <h4>💰 金額と出やすさ(重み)</h4>
+      <div id="money-editor"></div>
+      <button class="small-btn" onclick="addMoneyRow()">+ 追加</button>
+    </div>
+
+    <div class="sec">
+      <h4>📜 指令リスト(1行=1つ)</h4>
+      <textarea id="mission-editor"></textarea>
+      <div style="text-align:center;">
+        <button class="small-btn" onclick="resetMissions()" style="background:#3498db;">初期リストに戻す</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h4>🗑️ 記録</h4>
+      <div style="text-align:center;">
+        <button class="small-btn" onclick="clearHistory()" style="background:#e74c3c;">記録と合計金額を全部消す</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h4>🔑 PIN変更</h4>
+      <div class="edit-row">
+        <input type="text" id="new-pin" placeholder="新しいPIN(数字4桁など)">
+        <button class="small-btn" onclick="changePin()">変更</button>
+      </div>
+    </div>
+
+    <button id="save-btn" onclick="saveSettings()">💾 設定を保存して閉じる</button>
+  </div>
+
+<script>
+/* =========================================================
+   1. 路線マスタ(ここを編集すれば路線・駅を増やせます)
+   ========================================================= */
+const COMPANIES = {
+  metro:   "東京メトロ",
+  toei:    "都営地下鉄",
+  jr:      "JR東日本",
+  yokohama:"横浜市営地下鉄",
+  sotetsu: "相鉄",
+  keikyu:  "京急"
+};
+
+const LINES = {
+  G:{n:"銀座線",co:"metro",c:"#f39700"},  M:{n:"丸ノ内線",co:"metro",c:"#e60012"},
+  H:{n:"日比谷線",co:"metro",c:"#9caeb7"}, T:{n:"東西線",co:"metro",c:"#00a7db"},
+  C:{n:"千代田線",co:"metro",c:"#00ac9b"}, Y:{n:"有楽町線",co:"metro",c:"#c1a470"},
+  Z:{n:"半蔵門線",co:"metro",c:"#8f76d6"}, N:{n:"南北線",co:"metro",c:"#00ada9"},
+  F:{n:"副都心線",co:"metro",c:"#9c5e31"},
+  A:{n:"浅草線",co:"toei",c:"#ec6e65"},   I:{n:"三田線",co:"toei",c:"#006ab8"},
+  S:{n:"新宿線",co:"toei",c:"#b0bf1e"},   E:{n:"大江戸線",co:"toei",c:"#ce045b"},
+  JY:{n:"山手線",co:"jr",c:"#9acd32"},    JB:{n:"中央・総武線",co:"jr",c:"#ffd400"},
+  JK:{n:"京浜東北・根岸線",co:"jr",c:"#00b2e5"}, JL:{n:"常磐線(各駅)",co:"jr",c:"#808080"},
+  KY:{n:"京葉線",co:"jr",c:"#c9242f"},    JA:{n:"埼京線",co:"jr",c:"#00ac84"},
+  JO:{n:"横須賀・総武快速線",co:"jr",c:"#007ac0"}, JT:{n:"東海道線",co:"jr",c:"#f68b1e"},
+  JN:{n:"南武線",co:"jr",c:"#ffe600"},    JH:{n:"横浜線",co:"jr",c:"#7fc342"},
+  BL:{n:"ブルーライン",co:"yokohama",c:"#0068b7"}, GL:{n:"グリーンライン",co:"yokohama",c:"#00a040"},
+  SO:{n:"相鉄本線",co:"sotetsu",c:"#003580"},
+  KK:{n:"京急本線",co:"keikyu",c:"#e60012"}
+};
+
+const LINE_STATIONS = {
+  G:["浅草","田原町","稲荷町","上野","上野広小路","末広町","神田","三越前","日本橋","京橋","銀座","新橋","虎ノ門","溜池山王","赤坂見附","青山一丁目","外苑前","表参道","渋谷"],
+  M:["池袋","新大塚","茗荷谷","後楽園","本郷三丁目","御茶ノ水","淡路町","大手町","東京","銀座","霞ケ関","国会議事堂前","赤坂見附","四ツ谷","四谷三丁目","新宿御苑前","新宿三丁目","新宿","西新宿","中野坂上","新中野","東高円寺","新高円寺","南阿佐ケ谷","荻窪","中野新橋","中野富士見町","方南町"],
+  H:["北千住","南千住","三ノ輪","入谷","上野","仲御徒町","秋葉原","小伝馬町","人形町","茅場町","八丁堀","築地","東銀座","銀座","日比谷","霞ケ関","神谷町","虎ノ門ヒルズ","六本木","広尾","恵比寿","中目黒"],
+  T:["中野","落合","高田馬場","早稲田","神楽坂","飯田橋","九段下","竹橋","大手町","日本橋","茅場町","門前仲町","木場","東陽町","南砂町","西葛西","葛西","浦安","南行徳","行徳","妙典","原木中山","西船橋"],
+  C:["北綾瀬","綾瀬","北千住","町屋","西日暮里","千駄木","根津","湯島","新御茶ノ水","大手町","二重橋前","日比谷","霞ケ関","国会議事堂前","赤坂","乃木坂","表参道","明治神宮前","代々木公園","代々木上原"],
+  Y:["和光市","地下鉄成増","地下鉄赤塚","平和台","氷川台","小竹向原","千川","要町","池袋","東池袋","護国寺","江戸川橋","飯田橋","市ケ谷","麹町","永田町","桜田門","有楽町","銀座一丁目","新富町","月島","豊洲","辰巳","新木場"],
+  Z:["渋谷","表参道","青山一丁目","永田町","半蔵門","九段下","神保町","大手町","三越前","水天宮前","清澄白河","住吉","錦糸町","押上"],
+  N:["目黒","白金台","白金高輪","麻布十番","六本木一丁目","溜池山王","永田町","四ツ谷","市ケ谷","飯田橋","後楽園","東大前","本駒込","駒込","西ケ原","王子","王子神谷","志茂","赤羽岩淵"],
+  F:["和光市","地下鉄成増","地下鉄赤塚","平和台","氷川台","小竹向原","千川","要町","池袋","雑司が谷","西早稲田","東新宿","新宿三丁目","北参道","明治神宮前","渋谷"],
+  A:["西馬込","馬込","中延","戸越","五反田","高輪台","泉岳寺","三田","大門","新橋","東銀座","宝町","日本橋","人形町","東日本橋","浅草橋","蔵前","浅草","本所吾妻橋","押上"],
+  I:["目黒","白金台","白金高輪","三田","芝公園","御成門","内幸町","日比谷","大手町","神保町","水道橋","春日","白山","千石","巣鴨","西巣鴨","新板橋","板橋区役所前","板橋本町","本蓮沼","志村坂上","志村三丁目","蓮根","西台","高島平","新高島平","西高島平"],
+  S:["新宿","新宿三丁目","曙橋","市ケ谷","九段下","神保町","小川町","岩本町","馬喰横山","浜町","森下","菊川","住吉","西大島","大島","東大島","船堀","一之江","瑞江","篠崎","本八幡"],
+  E:["都庁前","新宿西口","東新宿","若松河田","牛込柳町","牛込神楽坂","飯田橋","春日","本郷三丁目","上野御徒町","新御徒町","蔵前","両国","森下","清澄白河","門前仲町","月島","勝どき","築地市場","汐留","大門","赤羽橋","麻布十番","六本木","青山一丁目","国立競技場","代々木","新宿","西新宿五丁目","中野坂上","東中野","中井","落合南長崎","新江古田","練馬","豊島園","練馬春日町","光が丘"],
+  JY:["東京","神田","秋葉原","御徒町","上野","鶯谷","日暮里","西日暮里","田端","駒込","巣鴨","大塚","池袋","目白","高田馬場","新大久保","新宿","代々木","原宿","渋谷","恵比寿","目黒","五反田","大崎","品川","高輪ゲートウェイ","田町","浜松町","新橋","有楽町"],
+  JB:["西荻窪","荻窪","阿佐ケ谷","高円寺","中野","東中野","大久保","新宿","代々木","千駄ケ谷","信濃町","四ツ谷","市ケ谷","飯田橋","水道橋","御茶ノ水","秋葉原","浅草橋","両国","錦糸町","亀戸","平井","新小岩","小岩"],
+  JK:["赤羽","東十条","王子","上中里","田端","西日暮里","日暮里","鶯谷","上野","御徒町","秋葉原","神田","東京","有楽町","新橋","浜松町","田町","高輪ゲートウェイ","品川","大井町","大森","蒲田","川崎","鶴見","新子安","東神奈川","横浜","桜木町","関内","石川町","山手","根岸","磯子","新杉田","洋光台","港南台","本郷台","大船"],
+  JL:["三河島","南千住","北千住","綾瀬","亀有","金町"],
+  KY:["八丁堀","越中島","潮見","新木場","葛西臨海公園"],
+  JA:["板橋","十条","赤羽","北赤羽","浮間舟渡"],
+  JO:["新日本橋","馬喰町","西大井","武蔵小杉","新川崎","保土ケ谷","東戸塚","戸塚","大船"],
+  JT:["東京","新橋","品川","川崎","横浜","戸塚","大船"],
+  JN:["川崎","尻手","矢向","鹿島田","平間","向河原","武蔵小杉","武蔵中原","武蔵新城","武蔵溝ノ口","津田山","久地","宿河原","登戸","中野島","稲田堤"],
+  JH:["東神奈川","大口","菊名","新横浜","小机","鴨居","中山","十日市場","長津田"],
+  BL:["湘南台","下飯田","立場","中田","踊場","戸塚","舞岡","下永谷","上永谷","港南中央","上大岡","弘明寺","蒔田","吉野町","阪東橋","伊勢佐木長者町","関内","桜木町","高島町","横浜","三ツ沢下町","三ツ沢上町","片倉町","岸根公園","新横浜","北新横浜","新羽","仲町台","センター南","センター北","中川","あざみ野"],
+  GL:["中山","川和町","都筑ふれあいの丘","センター南","センター北","北山田","東山田","高田","日吉本町","日吉"],
+  SO:["横浜","平沼橋","西横浜","天王町","星川","和田町","上星川","西谷","鶴ケ峰","二俣川","希望ケ丘","三ツ境","瀬谷","大和","相模大塚","さがみ野","かしわ台","海老名"],
+  KK:["泉岳寺","品川","北品川","新馬場","青物横丁","鮫洲","立会川","大森海岸","平和島","大森町","梅屋敷","京急蒲田","雑色","六郷土手","京急川崎","八丁畷","鶴見市場","京急鶴見","花月総持寺","生麦","京急新子安","子安","神奈川新町","京急東神奈川","神奈川","横浜","戸部","日ノ出町","黄金町","南太田","井土ケ谷","弘明寺","上大岡","屏風浦","杉田","京急富岡","能見台","金沢文庫","金沢八景"]
+};
+
+/* 同じ場所とみなす駅(左 → 右の名前に統合) */
+const ALIAS = {
+  "明治神宮前":"原宿", "新宿西口":"新宿",
+  "上野広小路":"御徒町", "上野御徒町":"御徒町", "仲御徒町":"御徒町",
+  "虎ノ門ヒルズ":"虎ノ門", "大門":"浜松町",
+  "京急蒲田":"蒲田", "京急川崎":"川崎", "京急鶴見":"鶴見",
+  "京急新子安":"新子安", "京急東神奈川":"東神奈川"
+};
+
+/* エリア判定:デフォルトは東京23区。ここに載っている駅だけ上書き */
+const KANAGAWA = new Set(["川崎","鶴見","新子安","東神奈川","横浜","桜木町","関内","石川町","山手","根岸","磯子","新杉田","洋光台","港南台","本郷台","大船","新川崎","保土ケ谷","東戸塚","戸塚","武蔵小杉","尻手","矢向","鹿島田","平間","向河原","武蔵中原","武蔵新城","武蔵溝ノ口","津田山","久地","宿河原","登戸","中野島","稲田堤","大口","菊名","新横浜","小机","鴨居","中山","十日市場","長津田","湘南台","下飯田","立場","中田","踊場","舞岡","下永谷","上永谷","港南中央","上大岡","弘明寺","蒔田","吉野町","阪東橋","伊勢佐木長者町","高島町","三ツ沢下町","三ツ沢上町","片倉町","岸根公園","北新横浜","新羽","仲町台","センター南","センター北","中川","あざみ野","川和町","都筑ふれあいの丘","北山田","東山田","高田","日吉本町","日吉","平沼橋","西横浜","天王町","星川","和田町","上星川","西谷","鶴ケ峰","二俣川","希望ケ丘","三ツ境","瀬谷","大和","相模大塚","さがみ野","かしわ台","海老名","八丁畷","鶴見市場","花月総持寺","生麦","子安","神奈川新町","神奈川","戸部","日ノ出町","黄金町","南太田","井土ケ谷","屏風浦","杉田","京急富岡","能見台","金沢文庫","金沢八景"]);
+const OTHER = new Set(["浦安","南行徳","行徳","妙典","原木中山","西船橋","和光市","本八幡"]);
+
+/* --- 駅マスタを自動生成(名前で重複統合) --- */
+const STATIONS = {};
+for (const [lid, list] of Object.entries(LINE_STATIONS)) {
+  for (const raw of list) {
+    const name = ALIAS[raw] || raw;
+    if (!STATIONS[name]) {
+      const area = OTHER.has(name) || OTHER.has(raw) ? "other"
+                 : (KANAGAWA.has(name) || KANAGAWA.has(raw) ? "kanagawa" : "tokyo23");
+      STATIONS[name] = { name, lines: [], area };
+    }
+    if (!STATIONS[name].lines.includes(lid)) STATIONS[name].lines.push(lid);
+  }
+}
+
+/* =========================================================
+   2. デフォルト設定
+   ========================================================= */
+const DEFAULT_MISSIONS = [
+  "神社・お寺でお参りする",
+  "ビルの隙間や屋上にある「小さな神社」を探す",
+  "お肉屋さんの「から揚げ・コロッケ」を食べる",
+  "昔ながらの「和菓子屋さん」で何か買う",
+  "美味しそうな「パン屋さん」でパンを買う",
+  "ローカルスーパーの「お惣菜」を偵察する",
+  "初めて見る「謎のローカルお菓子」を買う",
+  "町中華で「餃子」の看板やメニューを見つける",
+  "美味しそうな「ラーメン屋」を見つける",
+  "ジュース以外の「変な自動販売機」を探す",
+  "面白そうな「ガチャガチャ」を見つけて回す",
+  "商店街のアーチ(ゲート)を見つける",
+  "ご当地デザインの「カラーマンホール」を探す",
+  "マンホール以外の「足元のマーク」を見つける",
+  "20階以上の高いビルの中に入る",
+  "日本以外の「国旗」を見つける",
+  "100円以下のジュースがある「激安自販機」を探す",
+  "「変な名前の看板」を見つけて一緒に写真を撮る",
+  "名前に「動物の漢字」が入っている看板を探す",
+  "銅像やモニュメントと同じポーズで写真を撮る",
+  "変わった形の「遊具」がある公園を見つける",
+  "街の掲示板で「地元のイベントポスター」を読む",
+  "ひなたぼっこしている「地域猫」を探す",
+  "長〜い階段や、急な坂道を見つけて一番上まで登る",
+  "「公衆電話」を見つけて、触ってみる",
+  "地元の人が通う「銭湯」を見つける",
+  "「坂の標柱」を見つけて、名前の由来を読む"
+];
+const DEFAULT_SETTINGS = {
+  areas: ["tokyo23"],
+  lines: Object.keys(LINES).filter(l => ["metro","toei"].includes(LINES[l].co)),
+  spinsPerDay: 20,
+  targets: [
+    {label:"空花", w:40},{label:"風花", w:40},{label:"パパ", w:8},{label:"ママ", w:8},{label:"元気兄弟", w:4}
+  ],
+  money: [
+    {label:"10円", w:26},{label:"50円", w:25},{label:"100円", w:20},{label:"200円", w:13},
+    {label:"300円", w:10},{label:"500円", w:5},{label:"1000円", w:1}
+  ],
+  missions: [...DEFAULT_MISSIONS]
+};
+
+/* =========================================================
+   3. 状態管理
+   ========================================================= */
+let settings = loadSettings();
+let spinsLeft = parseInt(localStorage.getItem('spinsLeft') ?? settings.spinsPerDay);
+let excludedStations = JSON.parse(localStorage.getItem('excludedStations') || '[]');
+let history = JSON.parse(localStorage.getItem('questHistory') || '[]');
+let totalMoney = parseInt(localStorage.getItem('totalMoney') || '0');
+let intervals = [null,null,null,null];
+let isRunning = [false,false,false,false];
+let currentResult = { station:"", mission:"", money:"", target:"" };
+let lastStation = "";
+let missionBag = [];
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('questSettings'));
+    if (s && s.lines && s.targets && s.money && s.missions) return s;
+  } catch(e) {}
+  return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+}
+function persistSettings() { localStorage.setItem('questSettings', JSON.stringify(settings)); }
+function getPin() { return localStorage.getItem('parentPin') || "1234"; }
+
+/* =========================================================
+   4. 候補生成(フィルタ本体)
+   ========================================================= */
+function getCandidates(ignoreExclude=false) {
+  const sel = new Set(settings.lines);
+  const areas = new Set(settings.areas);
+  return Object.values(STATIONS).filter(st =>
+    areas.has(st.area) &&
+    st.lines.some(l => sel.has(l)) &&
+    (ignoreExclude || !excludedStations.includes(st.name))
+  );
+}
+
+/* =========================================================
+   5. 効果音・演出
+   ========================================================= */
+let audioCtx = null;
+function beep(freq, duration, type='sine') {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = type; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.start(); osc.stop(audioCtx.currentTime + duration);
+  } catch(e){}
+}
+function stopSound(){ beep(600,0.12,'square'); }
+function bonusSound(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.18,'triangle'),i*120)); }
+function clearSound(){ [659,880].forEach((f,i)=>setTimeout(()=>beep(f,0.15),i*100)); }
+function brothersSound(){ [523,659,784,880,1047,1319].forEach((f,i)=>setTimeout(()=>beep(f,0.15,'triangle'),i*90)); }
+function confetti() {
+  const emojis = ["🎉","⭐","✨","🎊","💮"];
+  for (let i=0;i<24;i++){
+    const s = document.createElement('span');
+    s.className = 'confetti';
+    s.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+    s.style.left = Math.random()*100+'vw';
+    s.style.animationDelay = (Math.random()*0.6)+'s';
+    document.body.appendChild(s);
+    setTimeout(()=>s.remove(), 3200);
+  }
+}
+
+/* =========================================================
+   6. スロット本体
+   ========================================================= */
+function weightedPick(list) {
+  const total = list.reduce((a,b)=>a+(+b.w||0),0);
+  let r = Math.random()*total;
+  for (const item of list) { r -= (+item.w||0); if (r < 0) return item.label; }
+  return list[list.length-1].label;
+}
+function getFairMission() {
+  if (missionBag.length === 0) {
+    missionBag = [...settings.missions];
+    for (let i=missionBag.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [missionBag[i],missionBag[j]] = [missionBag[j],missionBag[i]];
+    }
+  }
+  return missionBag.pop();
+}
+
+function startAll() {
+  if (spinsLeft <= 0) return;
+  const avail = getCandidates();
+  if (avail.length === 0) { alert("候補の駅が0駅です!⚙️設定でエリアや路線を見直してね。"); return; }
+  spinsLeft--;
+  localStorage.setItem('spinsLeft', spinsLeft);
+  updateHeader();
+  document.getElementById('start-btn').disabled = true;
+  document.getElementById('clear-btn').style.display = 'none';
+  document.getElementById('bonus-msg').style.display = 'none';
+
+  for (let i=0;i<4;i++) {
+    isRunning[i] = true;
+    document.getElementById(`stop-${i}`).disabled = false;
+    intervals[i] = setInterval(() => {
+      const box = document.getElementById(`reel-${i}`);
+      if (i===0) box.innerText = avail[Math.floor(Math.random()*avail.length)].name;
+      if (i===1) box.innerText = settings.missions[Math.floor(Math.random()*settings.missions.length)];
+      if (i===2) box.innerText = settings.money[Math.floor(Math.random()*settings.money.length)].label;
+      if (i===3) box.innerText = settings.targets[Math.floor(Math.random()*settings.targets.length)].label;
+    }, 50);
+  }
+  if (spinsLeft === 0) document.getElementById('start-btn').innerText = "回数ゼロ!(パパにお願い?)";
+}
+
+function stopReel(index) {
+  if (!isRunning[index]) return;
+  clearInterval(intervals[index]);
+  isRunning[index] = false;
+  document.getElementById(`stop-${index}`).disabled = true;
+  stopSound();
+
+  const box = document.getElementById(`reel-${index}`);
+  if (index === 0) {
+    const avail = getCandidates();
+    const st = avail[Math.floor(Math.random()*avail.length)];
+    currentResult.station = st.name; lastStation = st.name;
+    box.innerHTML = `<div>${st.name}</div><div class="line-chips">` +
+      st.lines.map(l=>`<span class="lc" style="background:${LINES[l].c}">${LINES[l].n}</span>`).join('') + `</div>`;
+  }
+  if (index === 1) { box.innerText = getFairMission(); currentResult.mission = box.innerText; }
+  if (index === 2) { box.innerText = weightedPick(settings.money); currentResult.money = box.innerText; }
+  if (index === 3) {
+    box.innerText = weightedPick(settings.targets); currentResult.target = box.innerText;
+    if (currentResult.target === "元気兄弟") { brothersSound(); box.style.textShadow = "0 0 12px #00d2d3"; }
+    else box.style.textShadow = "none";
+  }
+  checkAllStopped();
+}
+
+function checkAllStopped() {
+  if (!isRunning.includes(true)) {
+    if (spinsLeft > 0) document.getElementById('start-btn').disabled = false;
+    document.getElementById('clear-btn').style.display = 'inline-block';
+    if (Math.random() < 0.03) {
+      setTimeout(() => {
+        bonusSound();
+        const b = document.getElementById('bonus-msg');
+        b.innerHTML = "✨🎊 奇跡の地蔵ボーナス発生 🎊✨<br>地元でお地蔵さんを見つけたら<br>元気兄弟それぞれに【+200円】追加!!";
+        b.style.display = 'block';
+      }, 500);
+    }
+  }
+}
+
+function clearMission() {
+  if (!currentResult.station) return;
+  clearSound(); confetti();
+  totalMoney += parseInt(currentResult.money) || 0;
+  localStorage.setItem('totalMoney', totalMoney);
+
+  history.unshift({
+    station: currentResult.station, mission: currentResult.mission,
+    money: currentResult.money, target: currentResult.target,
+    time: new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})
+  });
+  localStorage.setItem('questHistory', JSON.stringify(history));
+  renderHistory(); updateHeader();
+  document.getElementById('clear-btn').style.display = 'none';
+  currentResult = { station:"", mission:"", money:"", target:"" };
+}
+
+/* =========================================================
+   7. 表示更新
+   ========================================================= */
+function getRank(n) {
+  if (n >= 15) return "👑 伝説の元気兄弟";
+  if (n >= 10) return "🏆 駅マスター";
+  if (n >= 5)  return "🎒 いっちょまえ冒険者";
+  if (n >= 1)  return "🌱 見習いたんけん隊";
+  return "🥚 これから冒険!";
+}
+function updateHeader() {
+  document.getElementById('spins-left').innerText = `残り回数:${spinsLeft}回`;
+  document.getElementById('total-money').innerText = `今日の合計:${totalMoney}円 💰`;
+  document.getElementById('rank').innerText = `スタンプ${history.length}個 ${getRank(history.length)}`;
+  updateSummary();
+}
+function updateSummary() {
+  const n = getCandidates().length;
+  const areaNames = {tokyo23:"東京23区", kanagawa:"神奈川", other:"千葉・埼玉はしっこ"};
+  const cos = [...new Set(settings.lines.map(l=>LINES[l].co))].map(c=>COMPANIES[c]).join("・") || "なし";
+  document.getElementById('summary-text').innerHTML =
+    `🎯 いまの候補 <b>${n}</b> 駅<br>${settings.areas.map(a=>areaNames[a]).join("+") || "エリアなし"} / ${cos}`;
+}
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (history.length === 0) { list.innerHTML = "まだ記録がありません"; return; }
+  list.innerHTML = history.map(h =>
+    `<div class="history-item"><span class="stamp">⭐</span> ${h.time} 【${h.station}】${h.mission}<br>→ ${h.target} に ${h.money}</div>`
+  ).join('');
+}
+function renderExcluded() {
+  const box = document.getElementById('excluded-list');
+  if (excludedStations.length === 0) { box.innerHTML = "除外中の駅:なし"; return; }
+  box.innerHTML = excludedStations.map(s =>
+    `<span class="excluded-tag" onclick="removeExcluded('${s}')">${s} ✕</span>`
+  ).join('');
+}
+
+/* =========================================================
+   8. 除外操作
+   ========================================================= */
+function excludeCurrent() {
+  const st = currentResult.station || lastStation;
+  if (!st) { alert("先にスロットを回してね!"); return; }
+  addExclude(st);
+}
+function addExclude(st) {
+  if (!excludedStations.includes(st)) {
+    excludedStations.push(st);
+    localStorage.setItem('excludedStations', JSON.stringify(excludedStations));
+    renderExcluded(); updateSummary();
+  }
+}
+function removeExcluded(st) {
+  excludedStations = excludedStations.filter(s => s !== st);
+  localStorage.setItem('excludedStations', JSON.stringify(excludedStations));
+  renderExcluded(); updateSummary();
+}
+function resetExcluded() {
+  excludedStations = [];
+  localStorage.setItem('excludedStations','[]');
+  renderExcluded(); updateSummary();
+}
+function preExclude() {
+  const v = document.getElementById('pre-exclude-input').value.trim().replace(/駅$/,'');
+  if (!v) return;
+  if (!STATIONS[v]) { alert(`「${v}」はリストに見つかりませんでした`); return; }
+  addExclude(v);
+  document.getElementById('pre-exclude-input').value = "";
+}
+function renderLineStations() {
+  const l = document.getElementById('line-pick').value;
+  const box = document.getElementById('line-station-list');
+  if (!l) { box.innerHTML = ""; return; }
+  // 統合後の駅名で、路線の並び順のまま表示(重複は最初の1回のみ)
+  const seen = new Set();
+  box.innerHTML = LINE_STATIONS[l].map(raw => {
+    const name = ALIAS[raw] || raw;
+    if (seen.has(name)) return "";
+    seen.add(name);
+    const ex = excludedStations.includes(name);
+    return `<span class="chip ${ex?'excluded':'on'}" onclick="toggleExcludeStation('${name}')">${name}${ex?' ✕':''}</span>`;
+  }).join('');
+}
+function toggleExcludeStation(name) {
+  if (excludedStations.includes(name)) removeExcluded(name); else addExclude(name);
+  renderLineStations();
+}
+
+/* =========================================================
+   9. 保護者設定
+   ========================================================= */
+function openSettings() {
+  const panel = document.getElementById('settings');
+  if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  const pin = prompt("🔐 保護者PINを入力してください");
+  if (pin === null) return;
+  if (pin !== getPin()) { alert("PINが違います"); return; }
+  renderSettings();
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior:'smooth'});
+}
+
+function renderSettings() {
+  // エリア
+  const areaDefs = [["tokyo23","東京23区"],["kanagawa","神奈川"],["other","千葉・埼玉はしっこ"]];
+  document.getElementById('area-chips').innerHTML = areaDefs.map(([id,label]) =>
+    `<span class="chip ${settings.areas.includes(id)?'on':''}" onclick="toggleArea('${id}')">${label}</span>`
+  ).join('');
+  // 会社・路線
+  let html = "";
+  for (const [co, coName] of Object.entries(COMPANIES)) {
+    const coLines = Object.keys(LINES).filter(l=>LINES[l].co===co);
+    const allOn = coLines.every(l=>settings.lines.includes(l));
+    html += `<div class="co-head" onclick="toggleCompany('${co}')">
+      <input type="checkbox" ${allOn?'checked':''} onclick="event.stopPropagation();toggleCompany('${co}')"> ${coName}</div><div>`;
+    html += coLines.map(l =>
+      `<span class="chip ${settings.lines.includes(l)?'on':''}" onclick="toggleLine('${l}')">
+        <span class="dot" style="background:${LINES[l].c}"></span>${LINES[l].n}</span>`).join('');
+    html += `</div>`;
+  }
+  document.getElementById('company-list').innerHTML = html;
+  // datalist
+  document.getElementById('station-datalist').innerHTML =
+    getCandidates(true).map(s=>`<option value="${s.name}">`).join('');
+  // 路線ピッカー
+  const pick = document.getElementById('line-pick');
+  const prev = pick.value;
+  let opts = `<option value="">▼ 路線を選んで駅一覧を表示</option>`;
+  for (const [co, coName] of Object.entries(COMPANIES)) {
+    const coLines = Object.keys(LINES).filter(l=>LINES[l].co===co);
+    opts += `<optgroup label="${coName}">` +
+      coLines.map(l=>`<option value="${l}">${LINES[l].n}</option>`).join('') + `</optgroup>`;
+  }
+  pick.innerHTML = opts;
+  pick.value = prev || "";
+  renderLineStations();
+  // 回数
+  document.getElementById('spins-per-day').value = settings.spinsPerDay;
+  // 対象者・金額
+  renderWeightEditor('target-editor', settings.targets);
+  renderWeightEditor('money-editor', settings.money);
+  // ミッション
+  document.getElementById('mission-editor').value = settings.missions.join("\n");
+}
+
+function toggleArea(id) {
+  const i = settings.areas.indexOf(id);
+  if (i >= 0) settings.areas.splice(i,1); else settings.areas.push(id);
+  renderSettings(); updateSummary();
+}
+function toggleLine(l) {
+  const i = settings.lines.indexOf(l);
+  if (i >= 0) settings.lines.splice(i,1); else settings.lines.push(l);
+  renderSettings(); updateSummary();
+}
+function toggleCompany(co) {
+  const coLines = Object.keys(LINES).filter(l=>LINES[l].co===co);
+  const allOn = coLines.every(l=>settings.lines.includes(l));
+  settings.lines = settings.lines.filter(l=>LINES[l].co!==co);
+  if (!allOn) settings.lines.push(...coLines);
+  renderSettings(); updateSummary();
+}
+
+function renderWeightEditor(elId, arr) {
+  const el = document.getElementById(elId);
+  el.innerHTML = arr.map((item,i) =>
+    `<div class="edit-row">
+      <input type="text" value="${item.label}" onchange="editItem('${elId}',${i},'label',this.value)">
+      <input type="number" min="0" value="${item.w}" onchange="editItem('${elId}',${i},'w',this.value)">
+      <button class="del-btn" onclick="delItem('${elId}',${i})">✕</button>
+    </div>`).join('');
+}
+function getArr(elId){ return elId==='target-editor' ? settings.targets : settings.money; }
+function editItem(elId,i,key,val){ getArr(elId)[i][key] = key==='w' ? (+val||0) : val; }
+function delItem(elId,i){ const a=getArr(elId); if(a.length<=1){alert("最低1つは必要です");return;} a.splice(i,1); renderWeightEditor(elId,a); }
+function addTargetRow(){ settings.targets.push({label:"あたらしい人", w:10}); renderWeightEditor('target-editor',settings.targets); }
+function addMoneyRow(){ settings.money.push({label:"100円", w:10}); renderWeightEditor('money-editor',settings.money); }
+
+function resetMissions(){
+  if (confirm("指令リストを初期状態に戻しますか?"))
+    document.getElementById('mission-editor').value = DEFAULT_MISSIONS.join("\n");
+}
+function resetSpins(){
+  spinsLeft = +document.getElementById('spins-per-day').value || settings.spinsPerDay;
+  localStorage.setItem('spinsLeft', spinsLeft);
+  document.getElementById('start-btn').innerText = "スピン開始!";
+  document.getElementById('start-btn').disabled = false;
+  updateHeader();
+  alert(`🤫 パパの魔法で回数が${spinsLeft}回にリセットされました!`);
+}
+function clearHistory(){
+  if (confirm("今日の記録と合計金額をすべて消しますか?")) {
+    history = []; totalMoney = 0;
+    localStorage.setItem('questHistory','[]');
+    localStorage.setItem('totalMoney','0');
+    renderHistory(); updateHeader();
+  }
+}
+function changePin(){
+  const p = document.getElementById('new-pin').value.trim();
+  if (p.length < 4) { alert("4文字以上にしてください"); return; }
+  localStorage.setItem('parentPin', p);
+  document.getElementById('new-pin').value = "";
+  alert("PINを変更しました");
+}
+function saveSettings(){
+  settings.spinsPerDay = +document.getElementById('spins-per-day').value || 20;
+  settings.missions = document.getElementById('mission-editor').value
+    .split("\n").map(s=>s.trim()).filter(s=>s);
+  if (settings.missions.length === 0) settings.missions = [...DEFAULT_MISSIONS];
+  if (settings.lines.length === 0) { alert("路線が1つも選ばれていません!"); return; }
+  if (settings.areas.length === 0) { alert("エリアが1つも選ばれていません!"); return; }
+  missionBag = []; // 指令が変わったのでシャッフルバッグを作り直し
+  persistSettings();
+  document.getElementById('settings').style.display = 'none';
+  updateHeader();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+/* --- 初期化 --- */
+renderExcluded(); renderHistory(); updateHeader();
+</script>
+</body>
+</html>
