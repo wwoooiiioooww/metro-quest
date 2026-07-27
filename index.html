@@ -483,7 +483,7 @@ const DEFAULT_SETTINGS = {
    GitHub Pagesでは姉妹アプリが同一オリジンになるため、
    'questHistory' のような一般的なキー名は他アプリと衝突しうる。
    ========================================================= */
-const APP_VER = 'v9';
+const APP_VER = 'v10';
 const APP_KEY = 'mq_v1';
 
 /* v4以前の旧キー(移行元)。互換のため移行後も削除しない */
@@ -591,7 +591,7 @@ function beep(freq, duration, type='sine') {
     const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
     osc.type = type; osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
     osc.start(); osc.stop(audioCtx.currentTime + duration);
   } catch(e){}
