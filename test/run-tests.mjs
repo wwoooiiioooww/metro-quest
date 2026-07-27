@@ -35,6 +35,7 @@ function boot(ls) {
     beforeParse(window) {
       window.confirm = () => true;
       window.alert = m => alerts.push(String(m));
+      window.scrollTo = () => {}; // jsdom未実装。本物のエラーを埋もれさせないため潰す
       window.addEventListener('error', e => errors.push(e.message));
       if (ls) Object.entries(ls).forEach(([k, v]) => window.localStorage.setItem(k, v));
     },
