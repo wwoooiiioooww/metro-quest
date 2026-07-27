@@ -20,11 +20,35 @@
     font-family: 'Helvetica Neue', Arial, sans-serif; text-align:center;
     background-color:var(--bg); color:#fff; margin:0; padding:10px; touch-action:manipulation;
   }
-  h1 { color:var(--orange); font-size:1.7em; margin:8px 0 4px; text-shadow:0 0 10px var(--orange); }
+  /* 狭い画面(360px級)でタイトルが途中で折り返さないよう、幅に応じて縮める */
+  h1 { color:var(--orange); font-size:clamp(1.15em, 5.4vw, 1.7em); margin:8px 0 4px;
+       text-shadow:0 0 10px var(--orange); white-space:nowrap; }
   #spins-left { font-size:1.15em; color:var(--cyan); font-weight:bold; }
   #total-money { font-size:1.05em; color:var(--gold); font-weight:bold; margin:4px 0 2px; }
   #rank { font-size:0.9em; color:var(--pink); margin-bottom:4px; }
   #app-ver { font-size:0.7em; color:var(--grey); margin-bottom:8px; }
+  #rank .sub { color:var(--grey); font-size:0.9em; }
+  #rank .help { color:var(--cyan); font-size:0.85em; text-decoration:underline; cursor:pointer; white-space:nowrap; }
+  .pct { font-size:0.75em; color:var(--cyan); width:44px; text-align:right; flex-shrink:0; }
+  /* 称号一覧 */
+  #ranks {
+    display:none; position:fixed; inset:0; z-index:300; background:rgba(12,14,32,0.97);
+    overflow-y:auto; padding:30px 16px 40px;
+  }
+  .ranks-inner { max-width:400px; margin:0 auto; text-align:left; }
+  #ranks h3 { color:var(--orange); font-size:1.25em; text-align:center; margin:0 0 6px; }
+  #ranks-next { color:var(--cyan); font-size:0.85em; text-align:center; margin-bottom:16px; }
+  .rank-row {
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:11px 13px; border-radius:10px; margin:7px 0; background:var(--panel);
+    border:2px solid transparent; font-size:0.95em;
+  }
+  .rank-row.now { background:#0e4a5e; border-color:var(--cyan); font-weight:bold; }
+  .rank-row .cond { color:var(--grey); font-size:0.78em; white-space:nowrap; }
+  #ranks-close {
+    background:var(--green); color:#fff; border:none; border-radius:50px; padding:13px 20px;
+    font-size:1.05em; font-weight:bold; cursor:pointer; width:100%; margin-top:20px; box-shadow:0 4px #27ae60;
+  }
 
   /* 候補サマリーバー */
   #summary-bar {
@@ -134,6 +158,16 @@
   <div id="rank"></div>
   <div id="app-ver"></div>
 
+  <div id="ranks">
+   <div class="ranks-inner">
+    <h3>🎖️ 称号一覧</h3>
+    <div id="ranks-next"></div>
+    <div id="ranks-list"></div>
+    <div class="note">称号は「⭐ミッション達成」を押した<b>累計回数</b>で上がります。記録を消さないかぎり下がりません。</div>
+    <button id="ranks-close" onclick="closeRanks()">とじる</button>
+   </div>
+  </div>
+
   <div id="summary-bar">
     <div id="summary-text"></div>
     <button id="gear-btn" onclick="openSettings()">⚙️</button>
@@ -198,12 +232,14 @@
 
     <div class="sec">
       <h4>🚫 事前除外(駅の検索登録)</h4>
-      <div class="edit-row">
-        <input type="text" id="pre-exclude-input" list="station-datalist" placeholder="駅名を入力…"
-               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <form class="edit-row" autocomplete="off" onsubmit="preExclude();return false;">
+        <input type="search" id="pre-exclude-input" list="station-datalist" placeholder="駅名を入力…"
+               name="mq-station-filter" enterkeyhint="done" inputmode="text"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               data-lpignore="true" data-form-type="other">
         <datalist id="station-datalist"></datalist>
-        <button class="small-btn" onclick="preExclude()">除外に追加</button>
-      </div>
+        <button type="button" class="small-btn" onclick="preExclude()">除外に追加</button>
+      </form>
       <div class="note">路線を選ぶと駅一覧が出ます。タップで除外⇔解除を切り替え。</div>
       <div class="edit-row">
         <select id="line-pick" onchange="renderLineStations()" style="flex-grow:1;"></select>
@@ -253,11 +289,13 @@
 
     <div class="sec">
       <h4>🔑 PIN変更</h4>
-      <div class="edit-row">
-        <input type="text" id="new-pin" placeholder="新しいPIN(数字4桁など)"
-               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-        <button class="small-btn" onclick="changePin()">変更</button>
-      </div>
+      <form class="edit-row" autocomplete="off" onsubmit="changePin();return false;">
+        <input type="text" id="parent-code" placeholder="新しいあいことば(数字4桁など)"
+               name="mq-parent-code" enterkeyhint="done"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               data-lpignore="true" data-form-type="other">
+        <button type="button" class="small-btn" onclick="changePin()">変更</button>
+      </form>
     </div>
 
     <button id="save-btn" onclick="saveSettings()">💾 設定を保存して閉じる</button>
@@ -403,7 +441,7 @@ const DEFAULT_SETTINGS = {
    GitHub Pagesでは姉妹アプリが同一オリジンになるため、
    'questHistory' のような一般的なキー名は他アプリと衝突しうる。
    ========================================================= */
-const APP_VER = 'v6';
+const APP_VER = 'v7';
 const APP_KEY = 'mq_v1';
 
 /* v4以前の旧キー(移行元)。互換のため移行後も削除しない */
@@ -639,13 +677,36 @@ function clearMission() {
 /* =========================================================
    7. 表示更新
    ========================================================= */
+/* 称号。しきい値は「クリア回数(history.length)」。
+   一覧を画面に出すため、if文ではなくテーブルで持つ */
+const RANKS = [
+  { n:0,  label:"🥚 これから冒険!" },
+  { n:1,  label:"🌱 見習いたんけん隊" },
+  { n:5,  label:"🎒 いっちょまえ冒険者" },
+  { n:10, label:"🏆 駅マスター" },
+  { n:15, label:"👑 伝説の元気兄弟" }
+];
 function getRank(n) {
-  if (n >= 15) return "👑 伝説の元気兄弟";
-  if (n >= 10) return "🏆 駅マスター";
-  if (n >= 5)  return "🎒 いっちょまえ冒険者";
-  if (n >= 1)  return "🌱 見習いたんけん隊";
-  return "🥚 これから冒険!";
+  let r = RANKS[0].label;
+  for (const x of RANKS) if (n >= x.n) r = x.label;
+  return r;
 }
+/* 次の称号まであと何回か。最高位なら null */
+function nextRank(n) { return RANKS.find(x => x.n > n) || null; }
+
+function openRanks() {
+  const n = history.length, cur = getRank(n), nx = nextRank(n);
+  document.getElementById('ranks-list').innerHTML = RANKS.map(x =>
+    `<div class="rank-row${x.label === cur ? ' now' : ''}">
+       <span>${x.label}</span>
+       <span class="cond">${x.n === 0 ? 'スタート' : 'クリア' + x.n + '回〜'}</span>
+     </div>`).join('');
+  document.getElementById('ranks-next').innerText = nx
+    ? `あと ${nx.n - n}回 クリアで「${nx.label}」`
+    : '最高位です。おめでとう!';
+  document.getElementById('ranks').style.display = 'block';
+}
+function closeRanks() { document.getElementById('ranks').style.display = 'none'; }
 /* 端末のローカル日付を YYYY-MM-DD で返す(Dateのlocale差を避けて自前で組む) */
 function todayKey() {
   const d = new Date();
@@ -665,9 +726,11 @@ function todayStats() {
 function updateHeader() {
   const st = todayStats();
   document.getElementById('spins-left').innerText = `残り回数:${spinsLeft}回`;
-  document.getElementById('total-money').innerText = `今日:${st.money}円 💰　ぜんぶ:${totalMoney}円`;
-  const days = st.days > 0 ? `・${st.days}日` : '';
-  document.getElementById('rank').innerText = `スタンプ${history.length}個${days} ${getRank(history.length)}`;
+  document.getElementById('total-money').innerText = `今日:${st.money}円 💰　累計:${totalMoney}円`;
+  const days = st.days > 0 ? `・ぼうけん${st.days}日` : '';
+  document.getElementById('rank').innerHTML =
+    `${getRank(history.length)}　<span class="sub">クリア${history.length}回${days}</span>` +
+    ` <span class="help" onclick="openRanks()">❓称号一覧</span>`;
   updateSummary();
 }
 function updateSummary() {
@@ -818,17 +881,41 @@ function toggleCompany(co) {
   renderSettings(); updateSummary();
 }
 
+/* 属性値・表示にユーザー入力を差し込むのでエスケープする。
+   ラベルに " が入ると編集欄が壊れる(実害あり) */
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+/* 重みは合計に対する割合で効く(100が上限ではない)。
+   数字だけだと「40=40%」と誤解されるので、実際の割合を横に出す */
 function renderWeightEditor(elId, arr) {
   const el = document.getElementById(elId);
   el.innerHTML = arr.map((item,i) =>
     `<div class="edit-row">
-      <input type="text" value="${item.label}" onchange="editItem('${elId}',${i},'label',this.value)">
+      <input type="text" value="${esc(item.label)}" onchange="editItem('${elId}',${i},'label',this.value)">
       <input type="number" min="0" value="${item.w}" onchange="editItem('${elId}',${i},'w',this.value)">
+      <span class="pct" id="${elId}-pct-${i}"></span>
       <button class="del-btn" onclick="delItem('${elId}',${i})">✕</button>
-    </div>`).join('');
+    </div>`).join('') + `<div class="note" id="${elId}-total"></div>`;
+  updatePcts(elId);
+}
+/* 重みを変えたら割合表示だけを更新する(全体を描き直すと入力欄が飛ぶ) */
+function updatePcts(elId) {
+  const arr = getArr(elId);
+  const total = arr.reduce((a,b) => a + (+b.w||0), 0);
+  arr.forEach((item,i) => {
+    const el = document.getElementById(`${elId}-pct-${i}`);
+    if (el) el.textContent = total > 0 ? Math.round((+item.w||0)/total*1000)/10 + '%' : '—';
+  });
+  const t = document.getElementById(`${elId}-total`);
+  if (t) t.textContent = total > 0
+    ? `重みの合計:${total}　→ 横の%が実際の出やすさです(100が上限ではありません)`
+    : '重みがすべて0です。1つ以上に数字を入れてください。';
 }
 function getArr(elId){ return elId==='target-editor' ? settings.targets : settings.money; }
-function editItem(elId,i,key,val){ getArr(elId)[i][key] = key==='w' ? (+val||0) : val; }
+function editItem(elId,i,key,val){ getArr(elId)[i][key] = key==='w' ? (+val||0) : val; updatePcts(elId); }
 function delItem(elId,i){ const a=getArr(elId); if(a.length<=1){alert("最低1つは必要です");return;} a.splice(i,1); renderWeightEditor(elId,a); }
 function addTargetRow(){ settings.targets.push({label:"あたらしい人", w:10}); renderWeightEditor('target-editor',settings.targets); }
 function addMoneyRow(){ settings.money.push({label:"100円", w:10}); renderWeightEditor('money-editor',settings.money); }
@@ -853,10 +940,10 @@ function clearHistory(){
   }
 }
 function changePin(){
-  const p = document.getElementById('new-pin').value.trim();
+  const p = document.getElementById('parent-code').value.trim();
   if (p.length < 4) { alert("4文字以上にしてください"); return; }
   store.pin = p; saveStore();
-  document.getElementById('new-pin').value = "";
+  document.getElementById('parent-code').value = "";
   alert("PINを変更しました");
 }
 function saveSettings(){
