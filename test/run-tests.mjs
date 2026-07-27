@@ -229,6 +229,70 @@ console.log('\n[8] バージョンとキャッシュキー');
   w.close();
 }
 
+/* ---------- 9b. 日付ごとの集計(v6) ---------- */
+console.log('\n[9b] 今日の分と累計');
+{
+  const d = new Date();
+  const T = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const st = {
+    settings:null, spinsLeft:null, excluded:[], pin:null, totalMoney: 900,
+    history: [
+      { station:'上野', money:'100円', date:T,            time:'10:00' },
+      { station:'銀座', money:'200円', date:T,            time:'11:00' },
+      { station:'浅草', money:'300円', date:'2020-01-01', time:'12:00' },
+      { station:'新橋', money:'300円',                    time:'13:00' }, // v5以前(日付なし)
+    ],
+  };
+  const { w, errors } = boot({ mq_v1: JSON.stringify(st) });
+  const total = w.document.getElementById('total-money').innerText;
+  const rank  = w.document.getElementById('rank').innerText;
+
+  ok(total.includes('今日:300円'), `今日の合計は今日の記録だけ (${total})`);
+  ok(total.includes('ぜんぶ:900円'), '累計はこれまで通り保持される');
+  ok(rank.includes('スタンプ4個'), `累計スタンプは日付の有無に関係なく全件 (${rank})`);
+  ok(rank.includes('2日'), `冒険日数は日付のある記録から算出 (${rank})`);
+  eq(w.eval('history.length'), 4, '古い記録が自動で消えない(リセットしない)');
+  eq(errors.length, 0, 'runtime errors: none');
+  w.close();
+}
+{
+  /* 日付の無い記録しかない場合、日数は表示しない(推測で埋めない) */
+  const st = { settings:null, spinsLeft:null, excluded:[], pin:null, totalMoney: 100,
+               history: [{ station:'上野', money:'100円', time:'10:00' }] };
+  const { w } = boot({ mq_v1: JSON.stringify(st) });
+  const rank = w.document.getElementById('rank').innerText;
+  ok(!rank.includes('日 '), `日付不明なら日数を出さない (${rank})`);
+  ok(w.document.getElementById('total-money').innerText.includes('今日:0円'), '日付の無い記録は今日に数えない');
+  w.close();
+}
+{
+  /* 新しく達成した記録には日付が入る */
+  const { w } = boot();
+  w.eval('currentResult = {station:"上野", mission:"テスト", money:"100円", target:"そら"}');
+  w.eval('clearMission()');
+  const h = JSON.parse(w.localStorage.getItem('mq_v1')).history[0];
+  ok(!!h.date && /^\d{4}-\d{2}-\d{2}$/.test(h.date), `新しい記録に日付が入る (${h.date})`);
+  ok(!!h.time, '時刻も従来通り入る');
+  ok(w.document.getElementById('total-money').innerText.includes('今日:100円'), '今日の合計に即反映される');
+  w.close();
+}
+
+/* ---------- 9c. 音の解除・自動入力の抑止 ---------- */
+console.log('\n[9c] 音と入力欄');
+{
+  const { w, errors } = boot();
+  eq(w.eval('typeof unlockAudio'), 'function', 'unlockAudio がある');
+  eq(w.eval('(function(){try{beep(440,0.1);return "ok"}catch(e){return e.message}})()'), 'ok',
+     'AudioContext非対応環境でも beep が例外を投げない');
+  eq(errors.length, 0, 'runtime errors: none');
+  w.close();
+
+  const sta = html.match(/<input[^>]*id="pre-exclude-input"[^>]*>/s)[0];
+  ok(/autocomplete="off"/.test(sta), '駅名入力に autocomplete="off" がある(自動入力バー抑止)');
+  const pin = html.match(/<input[^>]*id="new-pin"[^>]*>/s)[0];
+  ok(/autocomplete="off"/.test(pin), 'PIN入力に autocomplete="off" がある');
+}
+
 /* ---------- 9. 実名の混入防止 ---------- */
 console.log('\n[9] 公開リポジトリの衛生');
 {

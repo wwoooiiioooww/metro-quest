@@ -199,7 +199,8 @@
     <div class="sec">
       <h4>🚫 事前除外(駅の検索登録)</h4>
       <div class="edit-row">
-        <input type="text" id="pre-exclude-input" list="station-datalist" placeholder="駅名を入力…">
+        <input type="text" id="pre-exclude-input" list="station-datalist" placeholder="駅名を入力…"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         <datalist id="station-datalist"></datalist>
         <button class="small-btn" onclick="preExclude()">除外に追加</button>
       </div>
@@ -253,7 +254,8 @@
     <div class="sec">
       <h4>🔑 PIN変更</h4>
       <div class="edit-row">
-        <input type="text" id="new-pin" placeholder="新しいPIN(数字4桁など)">
+        <input type="text" id="new-pin" placeholder="新しいPIN(数字4桁など)"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         <button class="small-btn" onclick="changePin()">変更</button>
       </div>
     </div>
@@ -401,7 +403,7 @@ const DEFAULT_SETTINGS = {
    GitHub Pagesでは姉妹アプリが同一オリジンになるため、
    'questHistory' のような一般的なキー名は他アプリと衝突しうる。
    ========================================================= */
-const APP_VER = 'v5';
+const APP_VER = 'v6';
 const APP_KEY = 'mq_v1';
 
 /* v4以前の旧キー(移行元)。互換のため移行後も削除しない */
@@ -490,9 +492,22 @@ function getCandidates(ignoreExclude=false) {
    5. 効果音・演出
    ========================================================= */
 let audioCtx = null;
-function beep(freq, duration, type='sine') {
+/* モバイルでは、ユーザー操作の中で AudioContext を作って resume() しないと
+   suspended のままになり、setTimeout経由で鳴らす音がすべて無音になる。
+   画面のどこかを触るたびに解除を試みる(バックグラウンド復帰後も再中断するため) */
+function unlockAudio() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch(e){}
+}
+document.addEventListener('pointerdown', unlockAudio, { passive:true });
+document.addEventListener('touchstart', unlockAudio, { passive:true });
+
+function beep(freq, duration, type='sine') {
+  try {
+    unlockAudio();
+    if (!audioCtx) return;
     const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
     osc.type = type; osc.frequency.value = freq;
@@ -612,6 +627,7 @@ function clearMission() {
   history.unshift({
     station: currentResult.station, mission: currentResult.mission,
     money: currentResult.money, target: currentResult.target,
+    date: todayKey(),
     time: new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})
   });
   store.history = history; saveStore();
@@ -630,10 +646,28 @@ function getRank(n) {
   if (n >= 1)  return "🌱 見習いたんけん隊";
   return "🥚 これから冒険!";
 }
+/* 端末のローカル日付を YYYY-MM-DD で返す(Dateのlocale差を避けて自前で組む) */
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+/* 「今日の分」は履歴から集計する。自動リセットは一切しない(記録は消さない)。
+   v5以前の記録には date が無いので、今日の集計には入らず累計にだけ入る */
+function todayStats() {
+  const t = todayKey();
+  const mine = history.filter(h => h.date === t);
+  return {
+    count: mine.length,
+    money: mine.reduce((s,h) => s + (parseInt(h.money) || 0), 0),
+    days : new Set(history.filter(h => h.date).map(h => h.date)).size
+  };
+}
 function updateHeader() {
+  const st = todayStats();
   document.getElementById('spins-left').innerText = `残り回数:${spinsLeft}回`;
-  document.getElementById('total-money').innerText = `今日の合計:${totalMoney}円 💰`;
-  document.getElementById('rank').innerText = `スタンプ${history.length}個 ${getRank(history.length)}`;
+  document.getElementById('total-money').innerText = `今日:${st.money}円 💰　ぜんぶ:${totalMoney}円`;
+  const days = st.days > 0 ? `・${st.days}日` : '';
+  document.getElementById('rank').innerText = `スタンプ${history.length}個${days} ${getRank(history.length)}`;
   updateSummary();
 }
 function updateSummary() {
