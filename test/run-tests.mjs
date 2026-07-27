@@ -544,6 +544,46 @@ console.log('\n[15] 指令リストの行編集');
   w.close();
 }
 
+
+/* ---------- 16. 保護者モードのロック ---------- */
+console.log('\n[16] 保護者モードのロック');
+{
+  const { w, alerts, errors } = boot();
+  w.prompt = () => '1234';
+  w.eval('switchTab("set")');
+  eq(w.eval('parentAuthed'), true, 'あいことばを通すと認証済みになる');
+
+  w.eval('lockParent()');
+  eq(w.eval('parentAuthed'), false, 'ロックで認証が外れる');
+  ok(w.document.getElementById('tab-play').classList.contains('on'), 'ロックすると「あそぶ」タブへ戻る');
+  ok(alerts.some(a => a.includes('ロック')), 'ロックしたことがユーザーに伝わる');
+
+  /* 子どもが設定を開こうとしても、あいことばを聞かれる */
+  let asked = 0;
+  w.prompt = () => { asked++; return null; };
+  w.eval('switchTab("set")');
+  eq(asked, 1, 'ロック後はあいことばを聞かれる');
+  ok(!w.document.getElementById('tab-set').classList.contains('on'), 'あいことばなしでは開けない');
+  eq(errors.length, 0, 'runtime errors: none');
+  w.close();
+}
+{
+  /* 端末を渡したまま放置される事故を防ぐ自動ロック */
+  const { w, errors } = boot();
+  w.prompt = () => '1234';
+  w.eval('switchTab("set")');
+  eq(w.eval('parentAuthed'), true, '認証済みの状態をつくる');
+  Object.defineProperty(w.document, 'visibilityState', { value: 'hidden', configurable: true });
+  w.document.dispatchEvent(new w.Event('visibilitychange'));
+  eq(w.eval('parentAuthed'), false, 'アプリが背面に回ると自動でロックされる');
+  eq(errors.length, 0, 'runtime errors: none');
+  w.close();
+}
+{
+  ok(/id="lock-btn"/.test(html), 'ロックボタンが設置されている');
+  ok(/lockParent\(\)/.test(html), 'ロックボタンから lockParent が呼ばれる');
+}
+
 /* ---------- 結果 ---------- */
 console.log(`\n${'='.repeat(46)}`);
 console.log(`  passed: ${passed}  failed: ${failed}`);

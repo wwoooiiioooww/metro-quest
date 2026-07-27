@@ -314,7 +314,15 @@
     </div>
 
     <div class="sec">
-      <h4>🔑 PIN変更</h4>
+      <h4>🔒 保護者モードのロック</h4>
+      <div class="note">お子さまに端末をわたす前にロックしてください。次に「せってい」を開くときは、あいことばの入力が必要になります。</div>
+      <div style="text-align:center;">
+        <button class="small-btn" id="lock-btn" onclick="lockParent()" style="background:#e74c3c;">🔒 いますぐロックする</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h4>🔑 あいことばの変更</h4>
       <form class="edit-row" autocomplete="off" onsubmit="changePin();return false;">
         <input type="text" id="parent-code" placeholder="新しいあいことば(数字4桁など)"
                name="mq-parent-code" enterkeyhint="done"
@@ -475,7 +483,7 @@ const DEFAULT_SETTINGS = {
    GitHub Pagesでは姉妹アプリが同一オリジンになるため、
    'questHistory' のような一般的なキー名は他アプリと衝突しうる。
    ========================================================= */
-const APP_VER = 'v8';
+const APP_VER = 'v9';
 const APP_KEY = 'mq_v1';
 
 /* v4以前の旧キー(移行元)。互換のため移行後も削除しない */
@@ -857,6 +865,17 @@ function switchTab(name) {
 }
 /* ⚙️ボタンからも同じ導線に乗せる */
 function openSettings() { switchTab('set'); }
+
+/* 子どもに端末を渡す前に保護者モードを閉じる。
+   アプリが背面に回ったときも自動でロックする(渡したまま放置される事故を防ぐ) */
+function lockParent() {
+  parentAuthed = false;
+  switchTab('play');
+  alert("🔒 ロックしました。せっていを開くにはあいことばが必要です。");
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') parentAuthed = false;
+});
 
 function renderSettings() {
   // エリア
