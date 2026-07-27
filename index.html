@@ -23,7 +23,8 @@
   h1 { color:var(--orange); font-size:1.7em; margin:8px 0 4px; text-shadow:0 0 10px var(--orange); }
   #spins-left { font-size:1.15em; color:var(--cyan); font-weight:bold; }
   #total-money { font-size:1.05em; color:var(--gold); font-weight:bold; margin:4px 0 2px; }
-  #rank { font-size:0.9em; color:var(--pink); margin-bottom:8px; }
+  #rank { font-size:0.9em; color:var(--pink); margin-bottom:4px; }
+  #app-ver { font-size:0.7em; color:var(--grey); margin-bottom:8px; }
 
   /* 候補サマリーバー */
   #summary-bar {
@@ -131,6 +132,7 @@
   <div id="spins-left"></div>
   <div id="total-money"></div>
   <div id="rank"></div>
+  <div id="app-ver"></div>
 
   <div id="summary-bar">
     <div id="summary-text"></div>
@@ -395,12 +397,68 @@ const DEFAULT_SETTINGS = {
 
 /* =========================================================
    3. 状態管理
+   localStorageは単一キー(APP_KEY)に集約する。
+   GitHub Pagesでは姉妹アプリが同一オリジンになるため、
+   'questHistory' のような一般的なキー名は他アプリと衝突しうる。
    ========================================================= */
+const APP_VER = 'v5';
+const APP_KEY = 'mq_v1';
+
+/* v4以前の旧キー(移行元)。互換のため移行後も削除しない */
+const LEGACY_KEYS = {
+  settings: 'questSettings', spinsLeft: 'spinsLeft', excluded: 'excludedStations',
+  history: 'questHistory', totalMoney: 'totalMoney', pin: 'parentPin'
+};
+
+function blankStore() {
+  return { settings:null, spinsLeft:null, excluded:[], history:[], totalMoney:0, pin:null };
+}
+
+/* 旧キーが1つでも残っていれば拾い上げて単一キーの形に組み替える。
+   1つも無ければ null を返す(新規ユーザー) */
+function migrateLegacy() {
+  const o = blankStore();
+  let found = false;
+  const get = (k) => { const v = localStorage.getItem(k); if (v !== null) found = true; return v; };
+
+  try { const s = JSON.parse(get(LEGACY_KEYS.settings)); if (s) o.settings = s; } catch(e) {}
+  const sp = get(LEGACY_KEYS.spinsLeft);
+  if (sp !== null && sp !== '' && !isNaN(parseInt(sp))) o.spinsLeft = parseInt(sp);
+  try { const e = JSON.parse(get(LEGACY_KEYS.excluded) || '[]'); if (Array.isArray(e)) o.excluded = e; } catch(e) {}
+  try { const h = JSON.parse(get(LEGACY_KEYS.history) || '[]'); if (Array.isArray(h)) o.history = h; } catch(e) {}
+  const tm = get(LEGACY_KEYS.totalMoney);
+  if (tm !== null && tm !== '') o.totalMoney = parseInt(tm) || 0;
+  const pn = get(LEGACY_KEYS.pin);
+  if (pn !== null && pn !== '') o.pin = pn;
+
+  return found ? o : null;
+}
+
+function loadStore() {
+  try {
+    const raw = localStorage.getItem(APP_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && typeof s === 'object') return Object.assign(blankStore(), s);
+    }
+  } catch(e) {}
+  const migrated = migrateLegacy();
+  if (migrated) {
+    try { localStorage.setItem(APP_KEY, JSON.stringify(migrated)); } catch(e) {}
+    return migrated;
+  }
+  return blankStore();
+}
+function saveStore() {
+  try { localStorage.setItem(APP_KEY, JSON.stringify(store)); } catch(e) {}
+}
+
+let store = loadStore();
 let settings = loadSettings();
-let spinsLeft = parseInt(localStorage.getItem('spinsLeft') ?? settings.spinsPerDay);
-let excludedStations = JSON.parse(localStorage.getItem('excludedStations') || '[]');
-let history = JSON.parse(localStorage.getItem('questHistory') || '[]');
-let totalMoney = parseInt(localStorage.getItem('totalMoney') || '0');
+let spinsLeft = store.spinsLeft ?? settings.spinsPerDay;
+let excludedStations = store.excluded;
+let history = store.history;
+let totalMoney = store.totalMoney;
 let intervals = [null,null,null,null];
 let isRunning = [false,false,false,false];
 let currentResult = { station:"", mission:"", money:"", target:"" };
@@ -408,14 +466,12 @@ let lastStation = "";
 let missionBag = [];
 
 function loadSettings() {
-  try {
-    const s = JSON.parse(localStorage.getItem('questSettings'));
-    if (s && s.lines && s.targets && s.money && s.missions) return s;
-  } catch(e) {}
+  const s = store.settings;
+  if (s && s.lines && s.targets && s.money && s.missions) return s;
   return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 }
-function persistSettings() { localStorage.setItem('questSettings', JSON.stringify(settings)); }
-function getPin() { return localStorage.getItem('parentPin') || "1234"; }
+function persistSettings() { store.settings = settings; saveStore(); }
+function getPin() { return store.pin || "1234"; }
 
 /* =========================================================
    4. 候補生成(フィルタ本体)
@@ -487,7 +543,7 @@ function startAll() {
   const avail = getCandidates();
   if (avail.length === 0) { alert("候補の駅が0駅です!⚙️設定でエリアや路線を見直してね。"); return; }
   spinsLeft--;
-  localStorage.setItem('spinsLeft', spinsLeft);
+  store.spinsLeft = spinsLeft; saveStore();
   updateHeader();
   document.getElementById('start-btn').disabled = true;
   document.getElementById('clear-btn').style.display = 'none';
@@ -551,14 +607,14 @@ function clearMission() {
   if (!currentResult.station) return;
   clearSound(); confetti();
   totalMoney += parseInt(currentResult.money) || 0;
-  localStorage.setItem('totalMoney', totalMoney);
+  store.totalMoney = totalMoney; saveStore();
 
   history.unshift({
     station: currentResult.station, mission: currentResult.mission,
     money: currentResult.money, target: currentResult.target,
     time: new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})
   });
-  localStorage.setItem('questHistory', JSON.stringify(history));
+  store.history = history; saveStore();
   renderHistory(); updateHeader();
   document.getElementById('clear-btn').style.display = 'none';
   currentResult = { station:"", mission:"", money:"", target:"" };
@@ -613,18 +669,18 @@ function excludeCurrent() {
 function addExclude(st) {
   if (!excludedStations.includes(st)) {
     excludedStations.push(st);
-    localStorage.setItem('excludedStations', JSON.stringify(excludedStations));
+    store.excluded = excludedStations; saveStore();
     renderExcluded(); updateSummary();
   }
 }
 function removeExcluded(st) {
   excludedStations = excludedStations.filter(s => s !== st);
-  localStorage.setItem('excludedStations', JSON.stringify(excludedStations));
+  store.excluded = excludedStations; saveStore();
   renderExcluded(); updateSummary();
 }
 function resetExcluded() {
   excludedStations = [];
-  localStorage.setItem('excludedStations','[]');
+  store.excluded = excludedStations; saveStore();
   renderExcluded(); updateSummary();
 }
 function preExclude() {
@@ -749,7 +805,7 @@ function resetMissions(){
 }
 function resetSpins(){
   spinsLeft = +document.getElementById('spins-per-day').value || settings.spinsPerDay;
-  localStorage.setItem('spinsLeft', spinsLeft);
+  store.spinsLeft = spinsLeft; saveStore();
   document.getElementById('start-btn').innerText = "スピン開始!";
   document.getElementById('start-btn').disabled = false;
   updateHeader();
@@ -758,15 +814,14 @@ function resetSpins(){
 function clearHistory(){
   if (confirm("今日の記録と合計金額をすべて消しますか?")) {
     history = []; totalMoney = 0;
-    localStorage.setItem('questHistory','[]');
-    localStorage.setItem('totalMoney','0');
+    store.history = history; store.totalMoney = totalMoney; saveStore();
     renderHistory(); updateHeader();
   }
 }
 function changePin(){
   const p = document.getElementById('new-pin').value.trim();
   if (p.length < 4) { alert("4文字以上にしてください"); return; }
-  localStorage.setItem('parentPin', p);
+  store.pin = p; saveStore();
   document.getElementById('new-pin').value = "";
   alert("PINを変更しました");
 }
@@ -785,6 +840,7 @@ function saveSettings(){
 }
 
 /* --- 初期化 --- */
+document.getElementById('app-ver').textContent = '地下鉄クエスト ' + APP_VER;
 renderExcluded(); renderHistory(); updateHeader();
 
 /* --- PWA: Service Worker登録 --- */

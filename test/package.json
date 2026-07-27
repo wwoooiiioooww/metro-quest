@@ -1,0 +1,11 @@
+{
+  "name": "metro-quest-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node run-tests.mjs"
+  },
+  "dependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

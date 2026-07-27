@@ -1,7 +1,7 @@
 /* 地下鉄クエスト Service Worker
-   バージョンを上げたいとき(index.htmlを更新したとき)は
-   下の CACHE_NAME の数字を 1 つ増やしてアップロードしてください。 */
-const CACHE_NAME = 'metro-quest-v1';
+   index.html を更新したときは、index.html の APP_VER と
+   下の CACHE_NAME を必ず同じ番号に揃えて上げてください(テストで検証されます)。 */
+const CACHE_NAME = 'metro-quest-v5';
 const ASSETS = [
   './',
   './index.html',
