@@ -1,7 +1,7 @@
 /* 地下鉄クエスト Service Worker
    index.html を更新したときは、index.html の APP_VER と
    下の CACHE_NAME を必ず同じ番号に揃えて上げてください(テストで検証されます)。 */
-const CACHE_NAME = 'metro-quest-v7';
+const CACHE_NAME = 'metro-quest-v8';
 const ASSETS = [
   './',
   './index.html',

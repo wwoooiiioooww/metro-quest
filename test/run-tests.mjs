@@ -287,8 +287,6 @@ console.log('\n[9c] 音と入力欄');
   eq(errors.length, 0, 'runtime errors: none');
   w.close();
 
-  const sta = html.match(/<input[^>]*id="pre-exclude-input"[^>]*>/s)[0];
-  ok(/autocomplete="off"/.test(sta), '駅名入力に autocomplete="off" がある(自動入力バー抑止)');
   const pin = html.match(/<input[^>]*id="parent-code"[^>]*>/s)[0];
   ok(/autocomplete="off"/.test(pin), 'PIN入力に autocomplete="off" がある');
 }
@@ -409,11 +407,13 @@ console.log('\n[13] 自動入力バーの抑止');
 {
   ok(!/id="new-pin"/.test(html), 'idから "pin" を外した(パスワードマネージャ対策)');
   const forms = html.match(/<form[^>]*>/g) || [];
-  ok(forms.length >= 2, '入力欄が form で包まれている');
+  ok(forms.length >= 1, '残った入力欄は form で包まれている');
   ok(forms.every(f => /autocomplete="off"/.test(f)), 'form に autocomplete="off" がある');
-  const sta = html.match(/<input[^>]*id="pre-exclude-input"[^>]*>/s)[0];
-  ok(/data-lpignore/.test(sta), '駅名入力に data-lpignore がある');
-  ok(/name="mq-/.test(sta), '駅名入力の name が自動入力を誘発しない名前になっている');
+  /* 自動入力バー(鍵/カード/住所)はOS側が <input> に対して出すため、
+     属性では抑止しきれなかった。駅名の自由入力欄そのものを廃止した */
+  ok(!/pre-exclude-input/.test(html), '駅名の自由入力欄を廃止した');
+  ok(!/<datalist/.test(html), '駅名のdatalistも残っていない');
+  ok(!/function preExclude/.test(html), '未使用になった preExclude() が残っていない');
   const pc = html.match(/<input[^>]*id="parent-code"[^>]*>/s)[0];
   ok(/name="mq-/.test(pc), 'あいことば入力の name も同様');
 
@@ -427,6 +427,122 @@ console.log('\n[13] 自動入力バーの抑止');
   w.close();
 }
 
+
+
+/* ---------- 14. 画面下タブ ---------- */
+console.log('\n[14] 画面下タブ');
+{
+  const { w, errors } = boot();
+  ok(w.document.getElementById('tabbar'), 'タブバーがある');
+  eq(w.document.querySelectorAll('#tabbar button').length, 3, 'タブは3つ');
+  ok(w.document.getElementById('tab-play').classList.contains('on'), '起動時は「あそぶ」タブ');
+  ok(!w.document.getElementById('tab-set').classList.contains('on'), '設定タブは閉じている');
+
+  w.eval('switchTab("log")');
+  ok(w.document.getElementById('tab-log').classList.contains('on'), 'きろくタブに切り替わる');
+  ok(!w.document.getElementById('tab-play').classList.contains('on'), '前のタブは閉じる');
+  ok(w.document.getElementById('nav-log').classList.contains('on'), 'タブバーの選択状態も追従する');
+  eq(w.document.querySelectorAll('.tab-pane.on').length, 1, '同時に開くのは1つだけ');
+  eq(errors.length, 0, 'runtime errors: none');
+  w.close();
+}
+{
+  /* 設定タブはあいことばで守られる */
+  const { w, errors } = boot();
+  w.prompt = () => '9999';                    // 間違ったあいことば
+  w.eval('switchTab("set")');
+  ok(!w.document.getElementById('tab-set').classList.contains('on'), '違うあいことばでは設定タブが開かない');
+  w.prompt = () => '1234';                    // 既定のあいことば
+  w.eval('switchTab("set")');
+  ok(w.document.getElementById('tab-set').classList.contains('on'), '正しいあいことばで開く');
+  eq(w.eval('parentAuthed'), true, '一度通れば認証済みになる');
+  w.eval('switchTab("play")');
+  w.prompt = () => { throw new Error('二度目は聞かれないはず'); };
+  w.eval('switchTab("set")');
+  ok(w.document.getElementById('tab-set').classList.contains('on'), '2回目はあいことばを聞かれない');
+  eq(errors.length, 0, 'runtime errors: none');
+  w.close();
+}
+{
+  /* キャンセルしたら開かない */
+  const { w } = boot();
+  w.prompt = () => null;
+  w.eval('switchTab("set")');
+  ok(!w.document.getElementById('tab-set').classList.contains('on'), 'キャンセルでは開かない');
+  w.close();
+}
+
+/* ---------- 15. 指令リストの行編集 ---------- */
+console.log('\n[15] 指令リストの行編集');
+{
+  const { w, errors } = boot();
+  w.eval('renderMissionEditor()');
+  const rows = w.document.querySelectorAll('#mission-editor .edit-row');
+  eq(rows.length, w.eval('settings.missions.length'), '指令の数だけ行が出る');
+  eq(rows.length, w.eval('DEFAULT_MISSIONS.length'), `初期指令がすべて出る (${rows.length}件)`);
+  ok(!/<textarea id="mission-editor"/.test(html), 'テキストエリアではなくなっている');
+
+  /* 1行だけ書きかえる */
+  w.eval('editMission(0, "テスト指令にへんこう")');
+  eq(w.eval('settings.missions[0]'), 'テスト指令にへんこう', '1行だけ書きかえられる');
+
+  /* 追加は先頭に入る(スマホでスクロールせずに済むように) */
+  const before = w.eval('settings.missions.length');
+  w.eval('addMissionRow()');
+  eq(w.eval('settings.missions.length'), before + 1, '指令を追加できる');
+  eq(w.eval('settings.missions[0]'), 'あたらしい指令', '追加した指令は先頭に入る');
+
+  /* 削除 */
+  w.eval('delMission(0)');
+  eq(w.eval('settings.missions.length'), before, '指令を削除できる');
+  eq(w.eval('settings.missions[0]'), 'テスト指令にへんこう', '正しい行が消える');
+  eq(errors.length, 0, 'runtime errors: none');
+  w.close();
+}
+{
+  /* 最後の1件は消せない */
+  const { w, alerts } = boot();
+  w.eval('settings.missions = ["ひとつだけ"]');
+  w.eval('renderMissionEditor()');
+  w.eval('delMission(0)');
+  eq(w.eval('settings.missions.length'), 1, '最後の1件は削除できない');
+  ok(alerts.some(a => a.includes('最低1つ')), '理由がユーザーに伝わる');
+  w.close();
+}
+{
+  /* 保存時に空白行が落ちる。全部消えたら初期リストへ戻る */
+  const { w } = boot();
+  w.eval('settings.missions = ["のこす", "   ", ""]');
+  w.eval('saveSettings()');
+  eq(w.eval('settings.missions.length'), 1, '空白だけの指令は保存時に落ちる');
+  eq(w.eval('settings.missions[0]'), 'のこす', '中身のある指令は残る');
+  w.close();
+}
+{
+  const { w } = boot();
+  w.eval('settings.missions = ["  ", ""]');
+  w.eval('saveSettings()');
+  eq(w.eval('settings.missions.length'), w.eval('DEFAULT_MISSIONS.length'), '全部空なら初期リストに戻る');
+  w.close();
+}
+{
+  /* 指令に引用符が入っても編集欄が壊れない */
+  const { w } = boot();
+  w.eval('settings.missions = [' + JSON.stringify('"あぶない"<b>指令') + ']');
+  w.eval('renderMissionEditor()');
+  eq(w.document.querySelector('#mission-editor input').value, '"あぶない"<b>指令', '引用符やタグでも壊れない');
+  eq(w.document.querySelectorAll('#mission-editor .edit-row').length, 1, '余計な行が生えない');
+  w.close();
+}
+{
+  /* 保存すると「あそぶ」タブへ戻る */
+  const { w } = boot();
+  w.prompt = () => '1234';
+  w.eval('switchTab("set")');
+  w.eval('saveSettings()');
+  ok(w.document.getElementById('tab-play').classList.contains('on'), '保存後は「あそぶ」タブへ戻る');
+  w.close();
+}
 
 /* ---------- 結果 ---------- */
 console.log(`\n${'='.repeat(46)}`);

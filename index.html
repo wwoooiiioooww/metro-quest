@@ -18,8 +18,30 @@
   }
   body {
     font-family: 'Helvetica Neue', Arial, sans-serif; text-align:center;
-    background-color:var(--bg); color:#fff; margin:0; padding:10px; touch-action:manipulation;
+    background-color:var(--bg); color:#fff; margin:0; padding:10px 10px 78px; touch-action:manipulation;
   }
+  /* ---- 画面下タブ ---- */
+  .tab-pane { display:none; }
+  .tab-pane.on { display:block; }
+  nav#tabbar {
+    position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:480px; background:var(--panel);
+    border-top:2px solid var(--line); display:flex; z-index:100;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  nav#tabbar button {
+    flex:1; border:none; background:none; padding:8px 0 6px; cursor:pointer;
+    color:var(--grey); font-weight:bold; font-size:0.68em; position:relative; transition:.15s;
+  }
+  nav#tabbar button .i { display:block; font-size:1.8em; margin-bottom:1px; transition:.15s; }
+  nav#tabbar button.on { color:var(--cyan); background:linear-gradient(180deg,#0e3550,transparent); }
+  nav#tabbar button.on .i { transform:scale(1.15); }
+  nav#tabbar button.on::before {
+    content:""; position:absolute; top:0; left:24%; right:24%; height:3px;
+    border-radius:0 0 4px 4px; background:var(--cyan);
+  }
+  /* 指令リストは件数が多いので、この欄だけスクロールさせる */
+  #mission-editor { max-height:52vh; overflow-y:auto; margin-top:6px; }
   /* 狭い画面(360px級)でタイトルが途中で折り返さないよう、幅に応じて縮める */
   h1 { color:var(--orange); font-size:clamp(1.15em, 5.4vw, 1.7em); margin:8px 0 4px;
        text-shadow:0 0 10px var(--orange); white-space:nowrap; }
@@ -118,7 +140,7 @@
   .stamp { color:var(--green); font-weight:bold; }
 
   /* ---- 設定パネル ---- */
-  #settings { display:none; }
+  #settings { display:block; }
   .sec { border-top:1px dashed var(--line); margin-top:12px; padding-top:10px; }
   .sec h4 { color:var(--orange); font-size:0.95em; margin:0 0 6px; }
   .chip {
@@ -168,6 +190,8 @@
    </div>
   </div>
 
+  <div class="tab-pane on" id="tab-play">
+
   <div id="summary-bar">
     <div id="summary-text"></div>
     <button id="gear-btn" onclick="openSettings()">⚙️</button>
@@ -200,7 +224,11 @@
   <button id="clear-btn" onclick="clearMission()">⭐ ミッション達成!スタンプGET</button>
   <div id="bonus-msg"></div>
 
-  <!-- 除外(メイン画面のクイック操作) -->
+  </div><!-- /tab-play -->
+
+  <div class="tab-pane" id="tab-log">
+
+  <!-- 除外(クイック操作) -->
   <div class="panel">
     <h3>🚫 行った駅の除外</h3>
     <div style="text-align:center;">
@@ -216,6 +244,10 @@
   </div>
 
   <!-- ============ 保護者設定 ============ -->
+  </div><!-- /tab-log -->
+
+  <div class="tab-pane" id="tab-set">
+
   <div class="panel" id="settings">
     <h3>🔐 保護者せってい</h3>
 
@@ -231,15 +263,7 @@
     </div>
 
     <div class="sec">
-      <h4>🚫 事前除外(駅の検索登録)</h4>
-      <form class="edit-row" autocomplete="off" onsubmit="preExclude();return false;">
-        <input type="search" id="pre-exclude-input" list="station-datalist" placeholder="駅名を入力…"
-               name="mq-station-filter" enterkeyhint="done" inputmode="text"
-               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-               data-lpignore="true" data-form-type="other">
-        <datalist id="station-datalist"></datalist>
-        <button type="button" class="small-btn" onclick="preExclude()">除外に追加</button>
-      </form>
+      <h4>🚫 事前除外(駅を選んで除外)</h4>
       <div class="note">路線を選ぶと駅一覧が出ます。タップで除外⇔解除を切り替え。</div>
       <div class="edit-row">
         <select id="line-pick" onchange="renderLineStations()" style="flex-grow:1;"></select>
@@ -273,11 +297,13 @@
     </div>
 
     <div class="sec">
-      <h4>📜 指令リスト(1行=1つ)</h4>
-      <textarea id="mission-editor"></textarea>
+      <h4>📜 指令リスト</h4>
+      <div class="note">1つずつ書きかえられます。追加した指令は先頭に入ります。</div>
       <div style="text-align:center;">
+        <button class="small-btn" onclick="addMissionRow()">＋ 指令をついか</button>
         <button class="small-btn" onclick="resetMissions()" style="background:#3498db;">初期リストに戻す</button>
       </div>
+      <div id="mission-editor"></div>
     </div>
 
     <div class="sec">
@@ -300,6 +326,14 @@
 
     <button id="save-btn" onclick="saveSettings()">💾 設定を保存して閉じる</button>
   </div>
+
+  </div><!-- /tab-set -->
+
+  <nav id="tabbar">
+    <button id="nav-play" class="on" onclick="switchTab('play')"><span class="i">🎰</span>あそぶ</button>
+    <button id="nav-log"  onclick="switchTab('log')"><span class="i">📖</span>きろく</button>
+    <button id="nav-set"  onclick="switchTab('set')"><span class="i">⚙️</span>せってい</button>
+  </nav>
 
 <script>
 /* =========================================================
@@ -441,7 +475,7 @@ const DEFAULT_SETTINGS = {
    GitHub Pagesでは姉妹アプリが同一オリジンになるため、
    'questHistory' のような一般的なキー名は他アプリと衝突しうる。
    ========================================================= */
-const APP_VER = 'v7';
+const APP_VER = 'v8';
 const APP_KEY = 'mq_v1';
 
 /* v4以前の旧キー(移行元)。互換のため移行後も削除しない */
@@ -780,13 +814,6 @@ function resetExcluded() {
   store.excluded = excludedStations; saveStore();
   renderExcluded(); updateSummary();
 }
-function preExclude() {
-  const v = document.getElementById('pre-exclude-input').value.trim().replace(/駅$/,'');
-  if (!v) return;
-  if (!STATIONS[v]) { alert(`「${v}」はリストに見つかりませんでした`); return; }
-  addExclude(v);
-  document.getElementById('pre-exclude-input').value = "";
-}
 function renderLineStations() {
   const l = document.getElementById('line-pick').value;
   const box = document.getElementById('line-station-list');
@@ -809,16 +836,27 @@ function toggleExcludeStation(name) {
 /* =========================================================
    9. 保護者設定
    ========================================================= */
-function openSettings() {
-  const panel = document.getElementById('settings');
-  if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
-  const pin = prompt("🔐 保護者PINを入力してください");
-  if (pin === null) return;
-  if (pin !== getPin()) { alert("PINが違います"); return; }
-  renderSettings();
-  panel.style.display = 'block';
-  panel.scrollIntoView({behavior:'smooth'});
+/* 保護者タブは一度あいことばを通せば、そのセッション中は再入力しない */
+let parentAuthed = false;
+const TABS = ['play','log','set'];
+
+function switchTab(name) {
+  if (name === 'set' && !parentAuthed) {
+    const pin = prompt("🔐 保護者のあいことば(PIN)を入力してください");
+    if (pin === null) return;
+    if (pin !== getPin()) { alert("あいことばが違います"); return; }
+    parentAuthed = true;
+  }
+  TABS.forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('on', t === name);
+    document.getElementById('nav-' + t).classList.toggle('on', t === name);
+  });
+  if (name === 'set') renderSettings();
+  if (name === 'log') { renderHistory(); renderExcluded(); }
+  window.scrollTo({ top:0 });
 }
+/* ⚙️ボタンからも同じ導線に乗せる */
+function openSettings() { switchTab('set'); }
 
 function renderSettings() {
   // エリア
@@ -839,9 +877,6 @@ function renderSettings() {
     html += `</div>`;
   }
   document.getElementById('company-list').innerHTML = html;
-  // datalist
-  document.getElementById('station-datalist').innerHTML =
-    getCandidates(true).map(s=>`<option value="${s.name}">`).join('');
   // 路線ピッカー
   const pick = document.getElementById('line-pick');
   const prev = pick.value;
@@ -859,8 +894,8 @@ function renderSettings() {
   // 対象者・金額
   renderWeightEditor('target-editor', settings.targets);
   renderWeightEditor('money-editor', settings.money);
-  // ミッション
-  document.getElementById('mission-editor').value = settings.missions.join("\n");
+  // 指令
+  renderMissionEditor();
 }
 
 function toggleArea(id) {
@@ -920,9 +955,32 @@ function delItem(elId,i){ const a=getArr(elId); if(a.length<=1){alert("最低1�
 function addTargetRow(){ settings.targets.push({label:"あたらしい人", w:10}); renderWeightEditor('target-editor',settings.targets); }
 function addMoneyRow(){ settings.money.push({label:"100円", w:10}); renderWeightEditor('money-editor',settings.money); }
 
+/* 指令は1行1入力。スマホのテキストエリアで40行を編集するのは辛いため、
+   Studyきちの「きちの編集」と同じ行編集の形にする */
+function renderMissionEditor() {
+  document.getElementById('mission-editor').innerHTML = settings.missions.map((m,i) =>
+    `<div class="edit-row">
+      <input type="text" value="${esc(m)}" onchange="editMission(${i}, this.value)">
+      <button class="del-btn" onclick="delMission(${i})">✕</button>
+    </div>`).join('');
+}
+function editMission(i, v){ settings.missions[i] = v; }
+function delMission(i){
+  if (settings.missions.length <= 1) { alert("指令は最低1つ必要です"); return; }
+  settings.missions.splice(i,1);
+  renderMissionEditor();
+}
+function addMissionRow(){
+  settings.missions.unshift("あたらしい指令");
+  renderMissionEditor();
+  const first = document.querySelector('#mission-editor input');
+  if (first) { first.focus(); first.select(); }
+}
 function resetMissions(){
-  if (confirm("指令リストを初期状態に戻しますか?"))
-    document.getElementById('mission-editor').value = DEFAULT_MISSIONS.join("\n");
+  if (confirm("指令リストを初期状態に戻しますか?")) {
+    settings.missions = [...DEFAULT_MISSIONS];
+    renderMissionEditor();
+  }
 }
 function resetSpins(){
   spinsLeft = +document.getElementById('spins-per-day').value || settings.spinsPerDay;
@@ -948,16 +1006,14 @@ function changePin(){
 }
 function saveSettings(){
   settings.spinsPerDay = +document.getElementById('spins-per-day').value || 20;
-  settings.missions = document.getElementById('mission-editor').value
-    .split("\n").map(s=>s.trim()).filter(s=>s);
+  settings.missions = settings.missions.map(s => String(s).trim()).filter(s => s);
   if (settings.missions.length === 0) settings.missions = [...DEFAULT_MISSIONS];
   if (settings.lines.length === 0) { alert("路線が1つも選ばれていません!"); return; }
   if (settings.areas.length === 0) { alert("エリアが1つも選ばれていません!"); return; }
   missionBag = []; // 指令が変わったのでシャッフルバッグを作り直し
   persistSettings();
-  document.getElementById('settings').style.display = 'none';
   updateHeader();
-  window.scrollTo({top:0, behavior:'smooth'});
+  switchTab('play');
 }
 
 /* --- 初期化 --- */
