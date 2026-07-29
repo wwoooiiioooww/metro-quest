@@ -483,7 +483,7 @@ const DEFAULT_SETTINGS = {
    GitHub Pagesでは姉妹アプリが同一オリジンになるため、
    'questHistory' のような一般的なキー名は他アプリと衝突しうる。
    ========================================================= */
-const APP_VER = 'v10';
+const APP_VER = 'v11';
 const APP_KEY = 'mq_v1';
 
 /* v4以前の旧キー(移行元)。互換のため移行後も削除しない */
@@ -785,8 +785,9 @@ function updateSummary() {
 function renderHistory() {
   const list = document.getElementById('history-list');
   if (history.length === 0) { list.innerHTML = "まだ記録がありません"; return; }
+  /* 指令は保護者が自由に書けるので、< や " が入っても一覧が壊れないように通す */
   list.innerHTML = history.map(h =>
-    `<div class="history-item"><span class="stamp">⭐</span> ${h.time} 【${h.station}】${h.mission}<br>→ ${h.target} に ${h.money}</div>`
+    `<div class="history-item"><span class="stamp">⭐</span> ${esc(h.time)} 【${esc(h.station)}】${esc(h.mission)}<br>→ ${esc(h.target)} に ${esc(h.money)}</div>`
   ).join('');
 }
 function renderExcluded() {

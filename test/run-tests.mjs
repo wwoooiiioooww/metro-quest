@@ -584,6 +584,23 @@ console.log('\n[16] 保護者モードのロック');
   ok(/lockParent\(\)/.test(html), 'ロックボタンから lockParent が呼ばれる');
 }
 
+/* ---------- 17. 記録一覧のエスケープ ---------- */
+/* 指令は保護者が自由に書ける。< や " が入ると一覧のHTMLが壊れていた。
+   配布版(metro-quest-go)と同じ修正。 */
+console.log('\n[17] 記録一覧のエスケープ');
+{
+  const { w, errors } = boot();
+  w.eval(`history = [{ time:'10:00', station:'上野', mission:'<b>ふとじ</b>と \\'クオート\\' を書く', target:'そら', money:'100円' }]`);
+  w.eval('renderHistory()');
+  const list = w.document.getElementById('history-list');
+  ok(!list.querySelector('b'), 'ミッション内のタグが要素にならない');
+  ok(list.textContent.includes('<b>ふとじ</b>'), '書いたとおりの文字で見える');
+  ok(list.textContent.includes(`'クオート'`), 'クオートも消えない');
+  eq(list.querySelectorAll('.history-item').length, 1, '記録は1件のまま');
+  eq(errors.length, 0, 'runtime errors: none');
+  w.close();
+}
+
 /* ---------- 結果 ---------- */
 console.log(`\n${'='.repeat(46)}`);
 console.log(`  passed: ${passed}  failed: ${failed}`);
